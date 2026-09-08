@@ -1,6 +1,6 @@
-# [Project name]
+# Event Check-In
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Event Check-In is a mobile-first event entrance tool for scanning tickets, validating attendees, recording check-ins, and monitoring live event-day operations.
 
 ## Run & Operate
 
@@ -22,15 +22,24 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/event-check-in/src/App.tsx` — scanner, event-day overview, history, and settings flows
+- `artifacts/event-check-in/src/index.css` — shared visual tokens and responsive styling
+- `artifacts/api-server/` — shared API service scaffold for future server-backed validation
+- `lib/api-spec/openapi.yaml` — API contract source of truth when the mock service is replaced
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The first build uses a typed local mock service boundary so the scanner UI can move to a real validation API without changing the scanning interaction.
+- The scanner is exposed at both `/check-in` and `/dashboard/check-in` for staff convenience and compatibility with the product requirements.
+- The interface treats the backend as authoritative for ticket state; demo controls exercise the complete result-state surface without embedding sensitive customer data in QR content.
+- The initial experience is mobile-first, with a desktop event-day overview for organizers.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Live event-day overview with check-in rate, scanner coverage, entrance flow, and sync status
+- Camera-style scanner workspace with continuous scanning, manual ticket lookup, and auto-check-in mode
+- Distinct valid, duplicate, wrong-event, invalid, refunded, cancelled, transferred, and expired ticket states
+- Check-in history, demo audit outcomes, scanner/device settings, and offline-ready messaging
 
 ## User preferences
 
