@@ -240,6 +240,24 @@ const ticketTiers: TicketTier[] = [
   { id: 'speaker', name: 'Speaker circle', description: 'Curated roundtables and private dinner access.', price: 399, remaining: 12, accent: 'blue' },
 ];
 
+type IssuedTicket = {
+  ticketNumber: string;
+  ticketType: string;
+  attendeeName: string;
+  eventName: string;
+  eventDate: string;
+  venue: string;
+  qrDataUrl: string;
+};
+
+type IssuedOrder = {
+  orderNumber: string;
+  emailStatus: 'sent' | 'failed';
+  totalCents: number;
+  event: { name: string; date: string; venue: string };
+  tickets: IssuedTicket[];
+};
+
 function formatNumber(value: number) {
   return new Intl.NumberFormat('en-US').format(value);
 }
@@ -518,7 +536,9 @@ function BuyerCheckout() {
   const [step, setStep] = useState<'tickets' | 'details' | 'complete'>('tickets');
   const [quantities, setQuantities] = useState<Record<string, number>>({ general: 1, vip: 0, speaker: 0 });
   const [buyer, setBuyer] = useState({ name: '', email: '' });
-  const [orderNumber] = useState('NS-240618-042');
+  const [issuedOrder, setIssuedOrder] = useState<IssuedOrder | null>(null);
+  const [orderError, setOrderError] = useState('');
+  const [issuing, setIssuing] = useState(false);
 
   const selected = ticketTiers.filter((tier) => quantities[tier.id] > 0);
   const subtotal = selected.reduce((sum, tier) => sum + tier.price * quantities[tier.id], 0);
@@ -533,7 +553,33 @@ function BuyerCheckout() {
     }));
   };
 
+  const completeOrder = async () => {
+    setIssuing(true);
+    setOrderError('');
+    try {
+      const response = await fetch(`${basePath}/api/tickets/orders`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          buyerName: buyer.name,
+          buyerEmail: buyer.email,
+          items: selected.map((tier) => ({ tierId: tier.id, quantity: quantities[tier.id] })),
+        }),
+      });
+      const payload = await response.json() as IssuedOrder & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? 'We could not issue your tickets.');
+      setIssuedOrder(payload);
+      setStep('complete');
+    } catch (error) {
+      setOrderError(error instanceof Error ? error.message : 'We could not issue your tickets.');
+    } finally {
+      setIssuing(false);
+    }
+  };
+
   if (step === 'complete') {
+    if (!issuedOrder) return <div className="flex min-h-[40vh] items-center justify-center text-sm font-bold">Preparing your digital tickets…</div>;
     return <div className="drift-in mx-auto max-w-[850px]">
       <div className="mb-6 flex items-center justify-between">
         <Link href="/buy" data-testid="link-buy-more" className="flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Buy more tickets</Link>
@@ -544,25 +590,23 @@ function BuyerCheckout() {
           <div className="absolute -right-12 -top-20 h-56 w-56 rounded-full border-[28px] border-primary/10" />
           <div className="relative">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><CheckCircle2 size={25} strokeWidth={2.5} /></div>
-            <p className="mt-7 font-mono text-[10px] uppercase tracking-[.2em] text-secondary-foreground/55">Northstar Product Summit</p>
+            <p className="mt-7 font-mono text-[10px] uppercase tracking-[.2em] text-secondary-foreground/55">{issuedOrder.event.name}</p>
             <h1 className="mt-2 text-[clamp(2rem,5vw,3.4rem)] font-extrabold leading-none tracking-[-.07em]">You’re on the list.</h1>
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-secondary-foreground/65">Your demo order is ready. In production, your payment provider would now issue these digital tickets by email.</p>
+            <p className="mt-3 max-w-md text-sm leading-relaxed text-secondary-foreground/65">Your unique digital tickets are ready and have been sent to {buyer.email}.</p>
           </div>
         </div>
         <div className="grid gap-6 p-6 sm:grid-cols-[1fr_180px] sm:p-10">
           <div>
             <div className="font-mono text-[9px] uppercase tracking-[.18em] text-secondary-foreground/45">Order details</div>
             <div className="mt-4 space-y-3">
-              {selected.map((tier) => <div key={tier.id} className="flex items-center justify-between border-b border-secondary-foreground/10 pb-3 text-xs"><span><span className="font-bold">{quantities[tier.id]} × {tier.name}</span><span className="ml-2 text-secondary-foreground/50">${tier.price} each</span></span><span className="font-mono">${tier.price * quantities[tier.id]}</span></div>)}
+              {issuedOrder.tickets.map((ticket) => <div key={ticket.ticketNumber} className="flex items-center justify-between border-b border-secondary-foreground/10 pb-3 text-xs"><span><span className="font-bold">{ticket.ticketType}</span><span className="ml-2 text-secondary-foreground/50">{ticket.ticketNumber}</span></span><span className="font-mono">Valid</span></div>)}
             </div>
-            <div className="mt-5 flex items-center gap-2 text-[10px] text-secondary-foreground/55"><CalendarDays size={13} /> Today · 18 June 2024 · Pier 48, San Francisco</div>
-            <div className="mt-2 flex items-center gap-2 text-[10px] text-secondary-foreground/55"><UserRound size={13} /> {buyer.name || 'Guest attendee'} · {buyer.email || 'email pending'}</div>
-            <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-[10px] font-bold text-secondary-foreground/75"><Info size={13} /> Demo purchase · no payment was charged</div>
+            <div className="mt-5 flex items-center gap-2 text-[10px] text-secondary-foreground/55"><CalendarDays size={13} /> {issuedOrder.event.date} · {issuedOrder.event.venue}</div>
+            <div className="mt-2 flex items-center gap-2 text-[10px] text-secondary-foreground/55"><UserRound size={13} /> {buyer.name} · {buyer.email}</div>
+            <div className={`mt-6 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[10px] font-bold ${issuedOrder.emailStatus === 'sent' ? 'border-primary/30 bg-primary/10' : 'border-accent/30 bg-accent/10'}`}><Info size={13} /> {issuedOrder.emailStatus === 'sent' ? 'Ticket email sent' : 'Tickets created, but email delivery needs a retry'}</div>
           </div>
-          <div className="flex flex-col items-center justify-center rounded-2xl bg-card p-4 text-foreground">
-            <div className="qr-mark h-[132px] w-[132px] rounded-lg border-8 border-white bg-white" />
-            <div className="mt-3 font-mono text-[10px] font-bold tracking-wider">{orderNumber}</div>
-            <div className="mt-1 text-[9px] text-muted-foreground">Show at the entrance</div>
+          <div className="space-y-3">
+            {issuedOrder.tickets.map((ticket) => <div key={ticket.ticketNumber} className="flex flex-col items-center justify-center rounded-2xl bg-card p-4 text-foreground"><img src={ticket.qrDataUrl} alt={`QR code for ${ticket.ticketNumber}`} className="h-[132px] w-[132px] rounded-lg border-8 border-white bg-white" /><div className="mt-3 font-mono text-[10px] font-bold tracking-wider">{ticket.ticketNumber}</div><div className="mt-1 text-[9px] text-muted-foreground">Show at the entrance</div></div>)}
           </div>
         </div>
       </section>
@@ -571,7 +615,7 @@ function BuyerCheckout() {
 
   return <div className="drift-in mx-auto max-w-[1180px]">
     <PageHeading eyebrow="Public ticketing · Northstar Product Summit" title="Bring your people to Northstar." detail="Choose passes, share attendee details, and get a digital ticket ready for the door." action={<span className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 font-mono text-[10px] font-bold text-muted-foreground"><ShieldCheck size={13} className="text-primary" /> Secure checkout</span>} />
-    <div className="mb-6 flex items-center gap-2 rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-xs text-muted-foreground"><Info size={15} className="shrink-0 text-accent-foreground" /><span><strong className="text-foreground">Demo checkout.</strong> Connect Stripe or Whop to accept real payments and automatically email tickets.</span></div>
+    <div className="mb-6 flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-xs text-muted-foreground"><Info size={15} className="shrink-0 text-primary" /><span><strong className="text-foreground">Secure ticket issuance.</strong> After you complete checkout, each ticket gets a unique QR code and is emailed to the attendee.</span></div>
     <div className="grid gap-5 lg:grid-cols-[1.25fr_.75fr]">
       <div className="space-y-4">
         {step === 'tickets' && <section className="space-y-3">
@@ -591,8 +635,9 @@ function BuyerCheckout() {
         <div className="mb-5 flex items-center gap-2 rounded-xl bg-muted/60 p-3 text-[10px] text-muted-foreground"><CalendarDays size={14} className="text-foreground" /><span>Today · 18 June 2024<br /><strong className="text-foreground">Pier 48 · San Francisco</strong></span></div>
         {selected.length > 0 ? <div className="space-y-3">{selected.map((tier) => <div key={tier.id} className="flex items-start justify-between gap-3 text-xs"><span><span className="font-bold">{quantities[tier.id]} × {tier.name}</span><span className="mt-1 block text-[10px] text-muted-foreground">${tier.price} each</span></span><span className="font-mono font-bold">${tier.price * quantities[tier.id]}</span></div>)}</div> : <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">Choose at least one ticket to continue.</p>}
         <div className="my-5 border-t border-border pt-4 text-xs"><div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>${subtotal}</span></div><div className="mt-2 flex justify-between text-muted-foreground"><span>Service fee</span><span>${serviceFee}</span></div><div className="mt-4 flex items-end justify-between"><span className="font-extrabold">Total</span><span className="text-2xl font-extrabold tracking-[-.06em]">${total}</span></div></div>
-        {step === 'tickets' ? <button data-testid="button-continue-to-details" disabled={ticketCount === 0} onClick={() => setStep('details')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-xs font-extrabold text-primary-foreground transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40">Continue to details <ArrowRight size={15} /></button> : <button data-testid="button-place-demo-order" disabled={!buyer.name.trim() || !buyer.email.trim()} onClick={() => setStep('complete')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-xs font-extrabold text-primary-foreground transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"><CreditCard size={15} /> Complete demo order</button>}
-        <p className="mt-3 text-center text-[10px] leading-relaxed text-muted-foreground">No card details are collected in this demo.</p>
+         {step === 'tickets' ? <button data-testid="button-continue-to-details" disabled={ticketCount === 0} onClick={() => setStep('details')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-xs font-extrabold text-primary-foreground transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40">Continue to details <ArrowRight size={15} /></button> : <button data-testid="button-place-order" disabled={!buyer.name.trim() || !buyer.email.trim() || issuing} onClick={completeOrder} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-xs font-extrabold text-primary-foreground transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40">{issuing ? 'Issuing tickets…' : <><CreditCard size={15} /> Complete checkout</>}</button>}
+         {orderError && <p className="mt-3 rounded-xl bg-destructive/10 p-3 text-center text-[10px] font-bold text-destructive">{orderError}</p>}
+         <p className="mt-3 text-center text-[10px] leading-relaxed text-muted-foreground">Tickets are created securely and emailed after checkout.</p>
       </aside>
     </div>
   </div>;
