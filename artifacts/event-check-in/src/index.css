@@ -369,6 +369,20 @@
 }
 .font-mono { font-family: var(--app-font-mono); }
 .safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+.onboarding-input {
+  width: 100%;
+  border: 1px solid hsl(var(--input));
+  border-radius: 0.75rem;
+  background: hsl(var(--background));
+  padding: 0.75rem 0.875rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.onboarding-input:focus {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.16);
+}
 
 /**
  * Using the elevate system.

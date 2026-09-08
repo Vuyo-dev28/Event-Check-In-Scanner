@@ -33,6 +33,7 @@ import {
   Info,
   LayoutDashboard,
   LockKeyhole,
+  LogOut,
   MapPin,
   Menu,
   Minus,
@@ -240,6 +241,42 @@ const ticketTiers: TicketTier[] = [
   { id: 'speaker', name: 'Speaker circle', description: 'Curated roundtables and private dinner access.', price: 399, remaining: 12, accent: 'blue' },
 ];
 
+type DiscoverableEvent = {
+  id: string;
+  name: string;
+  date: string;
+  venue: string;
+  city: string;
+  category: string;
+  description: string;
+  price: number;
+  accent: 'lime' | 'coral' | 'blue';
+  status: 'Live' | 'Coming soon';
+};
+
+const discoverableEvents: DiscoverableEvent[] = [
+  { id: 'northstar-product-summit-2024', name: 'Northstar Product Summit', date: '18 June 2024', venue: 'Pier 48', city: 'San Francisco', category: 'Product · Community', description: 'A sharp, practical day for people building what comes next.', price: 89, accent: 'lime', status: 'Live' },
+  { id: 'designing-tomorrow-2024', name: 'Designing Tomorrow', date: '26 July 2024', venue: 'The Foundry', city: 'London', category: 'Design · Culture', description: 'A two-day gathering for the people shaping better experiences.', price: 120, accent: 'coral', status: 'Coming soon' },
+  { id: 'makers-after-dark-2024', name: 'Makers After Dark', date: '09 August 2024', venue: 'The Silo', city: 'Cape Town', category: 'Technology · Nightlife', description: 'An intimate evening of demos, stories, and unexpected collisions.', price: 45, accent: 'blue', status: 'Coming soon' },
+];
+
+const defaultCart = { general: 1, vip: 0, speaker: 0 };
+
+function cartStorageKey(userId?: string) {
+  return `event-check-in:cart:${userId ?? 'guest'}`;
+}
+
+function readCart(userId?: string): Record<string, number> {
+  if (typeof window === 'undefined') return defaultCart;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(cartStorageKey(userId)) ?? 'null') as Record<string, number> | null;
+    if (!parsed || typeof parsed !== 'object') return { ...defaultCart };
+    return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key, Number.isInteger(value) ? Math.max(0, Math.min(8, value)) : 0]));
+  } catch {
+    return { ...defaultCart };
+  }
+}
+
 type IssuedTicket = {
   ticketNumber: string;
   ticketType: string;
@@ -275,7 +312,10 @@ function AppShell({ children, checkedIn, role }: { children: ReactNode; checkedI
         { href: '/history', label: 'History', icon: History },
         { href: '/settings', label: 'Settings', icon: SettingsIcon },
       ]
-    : [{ href: '/buy', label: 'Buy tickets', icon: ShoppingBag }];
+    : [
+        { href: '/events', label: 'Events', icon: Sparkles },
+        { href: '/cart', label: 'Cart', icon: ShoppingBag },
+      ];
   const isScanner = location === '/check-in' || location === '/dashboard/check-in';
 
   return (
@@ -322,7 +362,7 @@ function AppShell({ children, checkedIn, role }: { children: ReactNode; checkedI
           <div className="flex items-center gap-2.5 px-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-accent-foreground text-xs font-bold">{(user?.firstName?.[0] ?? 'E')}{(user?.lastName?.[0] ?? 'C')}</div>
             <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-bold">{user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? 'Event user'}</div><div className="text-[10px] text-sidebar-foreground/45">{role === 'organizer' ? 'Event organizer' : 'Attendee'}</div></div>
-            <button type="button" data-testid="button-sign-out" onClick={() => signOut({ redirectUrl: basePath || '/' })} className="rounded-lg p-1 text-sidebar-foreground/45 hover:bg-sidebar-accent hover:text-sidebar-foreground" aria-label="Sign out"><MoreHorizontal size={16} /></button>
+             <button type="button" data-testid="button-sign-out" onClick={() => signOut({ redirectUrl: basePath || '/' })} className="rounded-lg p-1 text-sidebar-foreground/45 hover:bg-sidebar-accent hover:text-sidebar-foreground" aria-label="Sign out"><LogOut size={16} /></button>
           </div>
         </div>
       </aside>
@@ -337,14 +377,14 @@ function AppShell({ children, checkedIn, role }: { children: ReactNode; checkedI
             <div className="hidden items-center gap-2 md:flex"><span className="h-2 w-2 rounded-full bg-primary soft-pulse" /><span className="font-mono text-[10px] uppercase tracking-[.15em] text-muted-foreground">Live event operations</span></div>
           </div>
           <div className="flex items-center gap-2.5">
-            <Link href="/buy" data-testid="link-buy-tickets" className="hidden items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-[10px] font-extrabold text-primary-foreground transition hover:brightness-95 sm:flex"><ShoppingBag size={12} /> Buy tickets</Link>
+             {role === 'attendee' && <Link href="/events" data-testid="link-browse-events" className="hidden items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-[10px] font-extrabold text-primary-foreground transition hover:brightness-95 sm:flex"><Sparkles size={12} /> Browse events</Link>}
             <div className="hidden items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[10px] font-bold text-muted-foreground sm:flex"><Wifi size={12} className="text-primary" /> Offline-ready</div>
             <button data-testid="button-notifications" onClick={() => setNotificationsOpen(!notificationsOpen)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Bell size={18} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" /></button>
-            <button type="button" data-testid="button-header-sign-out" onClick={() => signOut({ redirectUrl: basePath || '/' })} className="hidden h-8 w-8 items-center justify-center rounded-full bg-secondary text-[10px] font-extrabold text-secondary-foreground sm:flex" aria-label="Sign out">{(user?.firstName?.[0] ?? 'E')}{(user?.lastName?.[0] ?? 'C')}</button>
+             <button type="button" data-testid="button-header-sign-out" onClick={() => signOut({ redirectUrl: basePath || '/' })} className="hidden h-8 w-8 items-center justify-center rounded-full bg-secondary text-[10px] font-extrabold text-secondary-foreground sm:flex" aria-label="Sign out"><LogOut size={14} /></button>
           </div>
         </header>
         {notificationsOpen && <div className="absolute right-4 top-[58px] z-50 w-[260px] rounded-2xl border border-border bg-card p-4 shadow-xl"><div className="flex items-center justify-between"><span className="text-xs font-extrabold">Ops notices</span><button data-testid="button-close-notifications" onClick={() => setNotificationsOpen(false)} className="rounded-md p-1 text-muted-foreground hover:bg-muted"><X size={14} /></button></div><div className="mt-3 flex gap-2 rounded-xl bg-primary/15 p-3"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><p className="text-[10px] leading-relaxed">All scanners are synced. No action needed.</p></div></div>}
-        {menuOpen && <div className="absolute left-3 right-3 top-[60px] z-50 rounded-2xl border border-border bg-card p-2 shadow-xl md:hidden">{nav.map(({ href, label, icon: Icon }) => <Link key={href} href={href} onClick={() => setMenuOpen(false)} data-testid={`link-mobile-${label.toLowerCase()}`} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold hover:bg-muted"><Icon size={17} />{label}</Link>)}</div>}
+         {menuOpen && <div className="absolute left-3 right-3 top-[60px] z-50 rounded-2xl border border-border bg-card p-2 shadow-xl md:hidden">{nav.map(({ href, label, icon: Icon }) => <Link key={href} href={href} onClick={() => setMenuOpen(false)} data-testid={`link-mobile-${label.toLowerCase()}`} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold hover:bg-muted"><Icon size={17} />{label}</Link>)}<button type="button" data-testid="button-mobile-sign-out" onClick={() => signOut({ redirectUrl: basePath || '/' })} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold text-destructive hover:bg-destructive/10"><LogOut size={17} />Sign out</button></div>}
         <main className={isScanner ? '' : 'mx-auto max-w-[1380px] px-4 pb-24 pt-6 md:px-8 md:pb-10 md:pt-9'}>{children}</main>
       </div>
       <nav className="safe-bottom fixed bottom-0 left-0 right-0 z-40 flex border-t border-border bg-card/95 px-3 pt-2 backdrop-blur-lg md:hidden">
@@ -533,8 +573,9 @@ function SettingGroup({ title, eyebrow, children }: { title: string; eyebrow: st
 }
 
 function BuyerCheckout() {
+  const { user } = useUser();
   const [step, setStep] = useState<'tickets' | 'details' | 'complete'>('tickets');
-  const [quantities, setQuantities] = useState<Record<string, number>>({ general: 1, vip: 0, speaker: 0 });
+  const [quantities, setQuantities] = useState<Record<string, number>>(() => readCart());
   const [buyer, setBuyer] = useState({ name: '', email: '' });
   const [issuedOrder, setIssuedOrder] = useState<IssuedOrder | null>(null);
   const [orderError, setOrderError] = useState('');
@@ -545,6 +586,16 @@ function BuyerCheckout() {
   const serviceFee = Math.round(subtotal * 0.035);
   const total = subtotal + serviceFee;
   const ticketCount = Object.values(quantities).reduce((sum, quantity) => sum + quantity, 0);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    setQuantities(readCart(user.id));
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    window.localStorage.setItem(cartStorageKey(user.id), JSON.stringify(quantities));
+  }, [quantities, user?.id]);
 
   const updateQuantity = (id: string, delta: number) => {
     setQuantities((current) => ({
@@ -643,6 +694,101 @@ function BuyerCheckout() {
   </div>;
 }
 
+function EventPoster({ event }: { event: DiscoverableEvent }) {
+  const posterTone = event.accent === 'lime' ? 'bg-primary text-primary-foreground' : event.accent === 'coral' ? 'bg-accent text-accent-foreground' : 'bg-chart-3 text-primary-foreground';
+  return <article className="group overflow-hidden rounded-[24px] border border-border bg-card shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+    <div className={`relative min-h-[250px] overflow-hidden p-5 ${posterTone}`}>
+      <div className="absolute -right-16 -top-20 h-48 w-48 rounded-full border-[26px] border-black/10 transition group-hover:scale-110" />
+      <div className="absolute bottom-[-44px] left-[-22px] h-36 w-36 rotate-12 rounded-[38px] border-[18px] border-white/15" />
+      <div className="relative flex h-full min-h-[220px] flex-col justify-between">
+        <div className="flex items-center justify-between gap-3"><span className="rounded-full bg-black/10 px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-[.14em]">{event.status}</span><span className="font-mono text-[10px] font-bold uppercase">{event.category}</span></div>
+        <div><div className="max-w-[250px] text-[clamp(2rem,4vw,3rem)] font-extrabold leading-[.92] tracking-[-.08em]">{event.name}</div><div className="mt-5 flex items-center gap-2 text-xs font-bold"><CalendarDays size={14} /> {event.date}</div><div className="mt-1 flex items-center gap-2 text-xs font-bold"><MapPin size={14} /> {event.venue} · {event.city}</div></div>
+      </div>
+    </div>
+    <div className="p-5"><p className="min-h-[42px] text-xs leading-relaxed text-muted-foreground">{event.description}</p><div className="mt-5 flex items-center justify-between gap-3"><div><span className="font-mono text-[9px] uppercase tracking-[.15em] text-muted-foreground">From</span><div className="text-lg font-extrabold">${event.price}</div></div>{event.status === 'Live' ? <Link href="/buy" data-testid={`link-event-buy-${event.id}`} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3.5 py-2.5 text-xs font-extrabold text-secondary-foreground transition hover:brightness-110">View tickets <ArrowRight size={14} /></Link> : <button type="button" data-testid={`button-event-notify-${event.id}`} className="rounded-xl border border-border px-3.5 py-2.5 text-xs font-bold text-muted-foreground hover:bg-muted">Coming soon</button>}</div></div>
+  </article>;
+}
+
+function EventDiscoveryPage() {
+  return <div className="drift-in mx-auto max-w-[1180px]">
+    <PageHeading eyebrow="Your event calendar" title="Find your next room." detail="Browse upcoming experiences, then keep every pass together in your cart." action={<Link href="/cart" className="inline-flex items-center gap-2 self-start rounded-xl border border-border bg-card px-3.5 py-2.5 text-xs font-bold hover:bg-muted sm:self-auto"><ShoppingBag size={14} /> View cart</Link>} />
+    <section className="mb-6 overflow-hidden rounded-[26px] bg-secondary p-6 text-secondary-foreground sm:p-8"><div className="max-w-2xl"><div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[.2em] text-secondary-foreground/55"><span className="h-2 w-2 rounded-full bg-primary soft-pulse" /> Curated for curious people</div><h2 className="text-[clamp(2rem,5vw,4rem)] font-extrabold leading-none tracking-[-.08em]">Good events have a point of view.</h2><p className="mt-4 max-w-lg text-sm leading-relaxed text-secondary-foreground/65">Save your seat with a few taps. Your ticket arrives by email with a unique QR code ready for the door.</p></div></section>
+    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{discoverableEvents.map((event) => <EventPoster key={event.id} event={event} />)}</div>
+  </div>;
+}
+
+function CartPage() {
+  const { user } = useUser();
+  const [quantities, setQuantities] = useState<Record<string, number>>(() => readCart());
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (user?.id) setQuantities(readCart(user.id));
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) window.localStorage.setItem(cartStorageKey(user.id), JSON.stringify(quantities));
+  }, [quantities, user?.id]);
+
+  const updateQuantity = (id: string, delta: number) => setQuantities((current) => ({ ...current, [id]: Math.max(0, Math.min(8, (current[id] ?? 0) + delta)) }));
+  const selected = ticketTiers.filter((tier) => (quantities[tier.id] ?? 0) > 0);
+  const count = selected.reduce((sum, tier) => sum + quantities[tier.id], 0);
+  const subtotal = selected.reduce((sum, tier) => sum + tier.price * quantities[tier.id], 0);
+  const serviceFee = Math.round(subtotal * 0.035);
+
+  return <div className="drift-in mx-auto max-w-[980px]">
+    <PageHeading eyebrow="Saved for checkout" title="Your cart." detail="Review your passes before continuing to attendee details." action={<Link href="/events" className="inline-flex items-center gap-2 self-start text-xs font-bold text-muted-foreground hover:text-foreground sm:self-auto"><ArrowLeft size={14} /> Keep browsing</Link>} />
+    {count === 0 ? <section className="rounded-[26px] border border-dashed border-border bg-card p-10 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/20"><ShoppingBag size={24} /></div><h2 className="mt-5 text-xl font-extrabold">Your cart is waiting.</h2><p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">Pick an event and add a ticket to see it here.</p><Link href="/events" className="mt-6 inline-flex rounded-xl bg-primary px-4 py-3 text-xs font-extrabold text-primary-foreground">Browse events</Link></section> : <div className="grid gap-5 lg:grid-cols-[1fr_320px]"><section className="space-y-3">{selected.map((tier) => <div key={tier.id} className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm"><div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${tier.accent === 'lime' ? 'bg-primary/25' : tier.accent === 'coral' ? 'bg-accent/20' : 'bg-chart-3/15'}`}><Ticket size={20} /></div><div className="min-w-0 flex-1"><div className="text-sm font-extrabold">{tier.name}</div><p className="mt-1 text-xs text-muted-foreground">${tier.price} each · {tier.description}</p></div><div className="flex items-center gap-2 rounded-xl bg-muted p-1"><button type="button" onClick={() => updateQuantity(tier.id, -1)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-card"><Minus size={14} /></button><span className="w-5 text-center text-xs font-extrabold">{quantities[tier.id]}</span><button type="button" onClick={() => updateQuantity(tier.id, 1)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-card shadow-sm"><Plus size={14} /></button></div></div>)}</section><aside className="h-fit rounded-2xl border border-border bg-card p-5 shadow-sm lg:sticky lg:top-24"><div className="font-mono text-[10px] uppercase tracking-[.16em] text-muted-foreground">Northstar summit</div><div className="mt-4 space-y-2 text-xs">{selected.map((tier) => <div key={tier.id} className="flex justify-between"><span>{quantities[tier.id]} × {tier.name}</span><span className="font-mono">${tier.price * quantities[tier.id]}</span></div>)}</div><div className="my-5 border-t border-border pt-4 text-xs"><div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>${subtotal}</span></div><div className="mt-2 flex justify-between text-muted-foreground"><span>Service fee</span><span>${serviceFee}</span></div><div className="mt-4 flex justify-between text-base font-extrabold"><span>Total</span><span>${subtotal + serviceFee}</span></div></div><button type="button" onClick={() => setLocation('/buy')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-xs font-extrabold text-primary-foreground">Continue to checkout <ArrowRight size={15} /></button></aside></div>}
+  </div>;
+}
+
+type ProfileUser = {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  primaryEmailAddress: { emailAddress: string } | null;
+  update: (params: { firstName: string; lastName: string }) => Promise<unknown>;
+};
+
+function AttendeeOnboarding({ user, onComplete }: { user: ProfileUser; onComplete: () => void }) {
+  const [form, setForm] = useState({ firstName: user.firstName ?? '', lastName: user.lastName ?? '', phone: '', city: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await user.update({ firstName: form.firstName.trim(), lastName: form.lastName.trim() });
+      window.localStorage.setItem(`event-check-in:attendee-profile:${user.id}`, JSON.stringify(form));
+      onComplete();
+    } catch {
+      setError('We could not save your profile. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return <OnboardingFrame eyebrow="Attendee profile" title="Tell us who the ticket is for." detail="This information helps us personalize your tickets and get you through the door faster."><form onSubmit={submit} className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><label><span className="mb-2 block text-xs font-bold">First name</span><input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className="onboarding-input" /></label><label><span className="mb-2 block text-xs font-bold">Last name</span><input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} className="onboarding-input" /></label></div><label className="block"><span className="mb-2 block text-xs font-bold">Email address</span><input readOnly value={user.primaryEmailAddress?.emailAddress ?? ''} className="onboarding-input bg-muted" /></label><div className="grid gap-4 sm:grid-cols-2"><label><span className="mb-2 block text-xs font-bold">Mobile number</span><input required type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+27 82 000 0000" className="onboarding-input" /></label><label><span className="mb-2 block text-xs font-bold">City</span><input required value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Johannesburg" className="onboarding-input" /></label></div>{error && <p className="rounded-xl bg-destructive/10 p-3 text-xs font-bold text-destructive">{error}</p>}<button disabled={saving} className="w-full rounded-xl bg-primary py-3.5 text-xs font-extrabold text-primary-foreground disabled:opacity-50">{saving ? 'Saving profile…' : 'Continue to events'}</button></form></OnboardingFrame>;
+}
+
+function OrganizerOnboarding({ userId, onComplete }: { userId: string; onComplete: () => void }) {
+  const [form, setForm] = useState({ businessName: '', businessType: '', businessEmail: '', businessPhone: '', eventName: '', eventDate: '', eventVenue: '', eventCity: '', capacity: '', description: '' });
+  const [saving, setSaving] = useState(false);
+  const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    window.localStorage.setItem(`event-check-in:organizer-profile:${userId}`, JSON.stringify(form));
+    window.setTimeout(() => { setSaving(false); onComplete(); }, 350);
+  };
+  return <OnboardingFrame eyebrow="Organizer setup" title="Build your event workspace." detail="Every field is required so your team and attendees have a complete source of truth."><form onSubmit={submit} className="space-y-6"><div><div className="mb-3 font-mono text-[10px] uppercase tracking-[.16em] text-muted-foreground">Business information</div><div className="grid gap-4 sm:grid-cols-2"><label><span className="mb-2 block text-xs font-bold">Business or organization name</span><input required value={form.businessName} onChange={(e) => update('businessName', e.target.value)} className="onboarding-input" /></label><label><span className="mb-2 block text-xs font-bold">Business type</span><select required value={form.businessType} onChange={(e) => update('businessType', e.target.value)} className="onboarding-input"><option value="">Choose one</option><option>Company</option><option>Community</option><option>Venue</option><option>Agency</option><option>Non-profit</option></select></label><label><span className="mb-2 block text-xs font-bold">Business email</span><input required type="email" value={form.businessEmail} onChange={(e) => update('businessEmail', e.target.value)} className="onboarding-input" /></label><label><span className="mb-2 block text-xs font-bold">Business phone</span><input required type="tel" value={form.businessPhone} onChange={(e) => update('businessPhone', e.target.value)} className="onboarding-input" /></label></div></div><div><div className="mb-3 font-mono text-[10px] uppercase tracking-[.16em] text-muted-foreground">First event</div><div className="grid gap-4 sm:grid-cols-2"><label><span className="mb-2 block text-xs font-bold">Event name</span><input required value={form.eventName} onChange={(e) => update('eventName', e.target.value)} className="onboarding-input" /></label><label><span className="mb-2 block text-xs font-bold">Event date</span><input required type="date" value={form.eventDate} onChange={(e) => update('eventDate', e.target.value)} className="onboarding-input" /></label><label><span className="mb-2 block text-xs font-bold">Venue</span><input required value={form.eventVenue} onChange={(e) => update('eventVenue', e.target.value)} className="onboarding-input" /></label><label><span className="mb-2 block text-xs font-bold">City</span><input required value={form.eventCity} onChange={(e) => update('eventCity', e.target.value)} className="onboarding-input" /></label><label><span className="mb-2 block text-xs font-bold">Expected capacity</span><input required min="1" type="number" value={form.capacity} onChange={(e) => update('capacity', e.target.value)} className="onboarding-input" /></label><label className="sm:col-span-2"><span className="mb-2 block text-xs font-bold">Event description</span><textarea required minLength={20} value={form.description} onChange={(e) => update('description', e.target.value)} rows={3} className="onboarding-input resize-none" placeholder="What should attendees know about this event?" /></label></div></div><button disabled={saving} className="w-full rounded-xl bg-primary py-3.5 text-xs font-extrabold text-primary-foreground disabled:opacity-50">{saving ? 'Creating workspace…' : 'Create organizer workspace'}</button></form></OnboardingFrame>;
+}
+
+function OnboardingFrame({ eyebrow, title, detail, children }: { eyebrow: string; title: string; detail: string; children: ReactNode }) {
+  const { signOut } = useClerk();
+  return <div className="min-h-[100dvh] bg-secondary px-4 py-8 text-secondary-foreground"><div className="mx-auto max-w-[760px]"><div className="flex items-center justify-between"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Ticket size={20} /></span><span className="text-sm font-extrabold">Event Check-In</span></div><button type="button" onClick={() => signOut({ redirectUrl: basePath || '/' })} className="flex items-center gap-2 rounded-xl border border-secondary-foreground/15 px-3 py-2 text-xs font-bold text-secondary-foreground/75 hover:bg-secondary-foreground/10"><LogOut size={14} /> Sign out</button></div><div className="mt-12 rounded-[28px] bg-background p-6 text-foreground shadow-2xl sm:p-10"><div className="mb-8"><div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground"><span className="h-2 w-2 rounded-full bg-primary" /> {eyebrow}</div><h1 className="text-[clamp(2rem,5vw,3.5rem)] font-extrabold leading-none tracking-[-.08em]">{title}</h1><p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">{detail}</p></div>{children}</div></div></div>;
+}
+
 function LandingPage() {
   return <div className="min-h-[100dvh] bg-secondary text-secondary-foreground"><div className="mx-auto flex min-h-[100dvh] max-w-[1280px] flex-col px-5 py-6 sm:px-8 lg:px-12">
     <header className="flex items-center justify-between"><Link href="/" className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Ticket size={20} strokeWidth={2.5} /></span><span><span className="block text-sm font-extrabold tracking-[-.03em]">Event Check-In</span><span className="block font-mono text-[9px] uppercase tracking-[.18em] text-secondary-foreground/50">Tickets made simple</span></span></Link><div className="flex items-center gap-2"><Link href="/sign-in" data-testid="link-landing-sign-in" className="rounded-xl px-3.5 py-2.5 text-xs font-bold text-secondary-foreground/75 hover:bg-secondary-foreground/10">Sign in</Link><Link href="/sign-up" data-testid="link-landing-sign-up" className="rounded-xl bg-primary px-3.5 py-2.5 text-xs font-extrabold text-primary-foreground hover:brightness-95">Create account</Link></div></header>
@@ -653,7 +799,8 @@ function LandingPage() {
 }
 
 function RoleChooser({ userId, userName, onChoose }: { userId: string; userName: string; onChoose: (role: AccountRole) => void }) {
-  return <div className="min-h-[100dvh] bg-secondary px-4 py-8 text-secondary-foreground"><div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-[900px] flex-col justify-center"><div className="mb-10 flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Ticket size={20} /></span><div><div className="text-sm font-extrabold">Event Check-In</div><div className="font-mono text-[9px] uppercase tracking-[.18em] text-secondary-foreground/50">Choose your workspace</div></div></div><div className="max-w-xl"><div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[.2em] text-secondary-foreground/55"><span className="h-2 w-2 rounded-full bg-primary" /> Welcome, {userName}</div><h1 className="text-[clamp(2.2rem,6vw,4.5rem)] font-extrabold leading-none tracking-[-.08em]">How will you use Event Check-In?</h1><p className="mt-4 text-sm leading-relaxed text-secondary-foreground/60">Choose the space that matches you. You can switch accounts later by signing out.</p></div><div className="mt-10 grid gap-4 md:grid-cols-2"><button data-testid="button-choose-attendee" onClick={() => onChoose('attendee')} className="group rounded-2xl border border-secondary-foreground/10 bg-secondary-foreground/5 p-5 text-left transition hover:-translate-y-1 hover:border-primary/70 hover:bg-secondary-foreground/10"><div className="flex items-start justify-between"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><ShoppingBag size={20} /></span><ArrowRight size={18} className="text-secondary-foreground/35 transition group-hover:translate-x-1 group-hover:text-primary" /></div><h2 className="mt-8 text-xl font-extrabold tracking-[-.04em]">I’m attending events</h2><p className="mt-2 text-xs leading-relaxed text-secondary-foreground/55">Browse events, buy tickets, and keep your digital passes in one place.</p></button><button data-testid="button-choose-organizer" onClick={() => onChoose('organizer')} className="group rounded-2xl border border-secondary-foreground/10 bg-secondary-foreground/5 p-5 text-left transition hover:-translate-y-1 hover:border-primary/70 hover:bg-secondary-foreground/10"><div className="flex items-start justify-between"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent text-accent-foreground"><LayoutDashboard size={20} /></span><ArrowRight size={18} className="text-secondary-foreground/35 transition group-hover:translate-x-1 group-hover:text-primary" /></div><h2 className="mt-8 text-xl font-extrabold tracking-[-.04em]">I organize events</h2><p className="mt-2 text-xs leading-relaxed text-secondary-foreground/55">Manage event day, assign scanners, and check guests in without slowing the line.</p></button></div><div className="mt-8 flex items-center gap-2 text-[10px] text-secondary-foreground/40"><LockKeyhole size={12} /> Account role saved for this device · {userId.slice(0, 12)}…</div></div></div>;
+  const { signOut } = useClerk();
+  return <div className="min-h-[100dvh] bg-secondary px-4 py-8 text-secondary-foreground"><div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-[900px] flex-col justify-center"><div className="mb-10 flex items-center justify-between gap-3"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Ticket size={20} /></span><div><div className="text-sm font-extrabold">Event Check-In</div><div className="font-mono text-[9px] uppercase tracking-[.18em] text-secondary-foreground/50">Choose your workspace</div></div></div><button type="button" data-testid="button-role-sign-out" onClick={() => signOut({ redirectUrl: basePath || '/' })} className="flex items-center gap-2 rounded-xl border border-secondary-foreground/15 px-3 py-2 text-xs font-bold text-secondary-foreground/75 hover:bg-secondary-foreground/10"><LogOut size={14} /> Sign out</button></div><div className="max-w-xl"><div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[.2em] text-secondary-foreground/55"><span className="h-2 w-2 rounded-full bg-primary" /> Welcome, {userName}</div><h1 className="text-[clamp(2.2rem,6vw,4.5rem)] font-extrabold leading-none tracking-[-.08em]">How will you use Event Check-In?</h1><p className="mt-4 text-sm leading-relaxed text-secondary-foreground/60">Choose the space that matches you. You can switch accounts later by signing out.</p></div><div className="mt-10 grid gap-4 md:grid-cols-2"><button data-testid="button-choose-attendee" onClick={() => onChoose('attendee')} className="group rounded-2xl border border-secondary-foreground/10 bg-secondary-foreground/5 p-5 text-left transition hover:-translate-y-1 hover:border-primary/70 hover:bg-secondary-foreground/10"><div className="flex items-start justify-between"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><ShoppingBag size={20} /></span><ArrowRight size={18} className="text-secondary-foreground/35 transition group-hover:translate-x-1 group-hover:text-primary" /></div><h2 className="mt-8 text-xl font-extrabold tracking-[-.04em]">I’m attending events</h2><p className="mt-2 text-xs leading-relaxed text-secondary-foreground/55">Browse events, buy tickets, and keep your digital passes in one place.</p></button><button data-testid="button-choose-organizer" onClick={() => onChoose('organizer')} className="group rounded-2xl border border-secondary-foreground/10 bg-secondary-foreground/5 p-5 text-left transition hover:-translate-y-1 hover:border-primary/70 hover:bg-secondary-foreground/10"><div className="flex items-start justify-between"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent text-accent-foreground"><LayoutDashboard size={20} /></span><ArrowRight size={18} className="text-secondary-foreground/35 transition group-hover:translate-x-1 group-hover:text-primary" /></div><h2 className="mt-8 text-xl font-extrabold tracking-[-.04em]">I organize events</h2><p className="mt-2 text-xs leading-relaxed text-secondary-foreground/55">Manage event day, assign scanners, and check guests in without slowing the line.</p></button></div><div className="mt-8 flex items-center gap-2 text-[10px] text-secondary-foreground/40"><LockKeyhole size={12} /> Account role saved for this device · {userId.slice(0, 12)}…</div></div></div>;
 }
 
 function SignInPage() {
@@ -690,13 +837,14 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
 function Router({ role }: { role: AccountRole }) {
   const [checkedIn, setCheckedIn] = useState(liveEvent.checkedIn);
   const checkIn = () => setCheckedIn(value => value + 1);
-  return <AppShell checkedIn={checkedIn} role={role}><RoutedErrorBoundary><Switch><Route path="/"><Overview checkedIn={checkedIn} /></Route><Route path="/buy"><BuyerCheckout /></Route><Route path="/tickets"><BuyerCheckout /></Route><Route path="/check-in"><Scanner onCheckIn={checkIn} checkedIn={checkedIn} /></Route><Route path="/dashboard/check-in"><Scanner onCheckIn={checkIn} checkedIn={checkedIn} /></Route><Route path="/history"><HistoryPage /></Route><Route path="/settings"><SettingsPage /></Route><Route><NotFound /></Route></Switch></RoutedErrorBoundary></AppShell>;
+  return <AppShell checkedIn={checkedIn} role={role}><RoutedErrorBoundary><Switch><Route path="/"><Overview checkedIn={checkedIn} /></Route><Route path="/events"><EventDiscoveryPage /></Route><Route path="/cart"><CartPage /></Route><Route path="/buy"><BuyerCheckout /></Route><Route path="/tickets"><BuyerCheckout /></Route><Route path="/check-in"><Scanner onCheckIn={checkIn} checkedIn={checkedIn} /></Route><Route path="/dashboard/check-in"><Scanner onCheckIn={checkIn} checkedIn={checkedIn} /></Route><Route path="/history"><HistoryPage /></Route><Route path="/settings"><SettingsPage /></Route><Route><NotFound /></Route></Switch></RoutedErrorBoundary></AppShell>;
 }
 
 function AuthenticatedExperience() {
   const { isLoaded, isSignedIn, user } = useUser();
   const [location, setLocation] = useLocation();
   const [role, setRole] = useState<AccountRole | null>(null);
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -707,10 +855,20 @@ function AuthenticatedExperience() {
     setRole(storedRole === 'attendee' || storedRole === 'organizer' ? storedRole : null);
   }, [user]);
 
+  useEffect(() => {
+    if (!user || !role) {
+      setOnboardingComplete(false);
+      return;
+    }
+    const profileKey = role === 'attendee' ? `event-check-in:attendee-profile:${user.id}` : `event-check-in:organizer-profile:${user.id}`;
+    setOnboardingComplete(Boolean(window.localStorage.getItem(profileKey)));
+  }, [role, user]);
+
   if (!isLoaded) return <div className="flex min-h-[100dvh] items-center justify-center bg-secondary text-secondary-foreground"><div className="flex items-center gap-2 text-xs font-bold"><span className="h-2 w-2 rounded-full bg-primary soft-pulse" /> Loading your account…</div></div>;
   if (!isSignedIn || !user) return location === '/' ? <LandingPage /> : <Redirect to="/sign-in" />;
-  if (!role) return <RoleChooser userId={user.id} userName={user.firstName ?? user.primaryEmailAddress?.emailAddress ?? 'there'} onChoose={(nextRole) => { window.localStorage.setItem(`event-check-in:role:${user.id}`, nextRole); setRole(nextRole); setLocation(nextRole === 'attendee' ? '/buy' : '/'); }} />;
-  if (role === 'attendee' && location !== '/buy' && location !== '/tickets') return <Redirect to="/buy" />;
+  if (!role) return <RoleChooser userId={user.id} userName={user.firstName ?? user.primaryEmailAddress?.emailAddress ?? 'there'} onChoose={(nextRole) => { window.localStorage.setItem(`event-check-in:role:${user.id}`, nextRole); setRole(nextRole); setOnboardingComplete(false); }} />;
+  if (!onboardingComplete) return role === 'attendee' ? <AttendeeOnboarding user={user} onComplete={() => { setOnboardingComplete(true); setLocation('/events'); }} /> : <OrganizerOnboarding userId={user.id} onComplete={() => { setOnboardingComplete(true); setLocation('/'); }} />;
+  if (role === 'attendee' && !['/events', '/cart', '/buy', '/tickets'].includes(location)) return <Redirect to="/events" />;
   return <Router role={role} />;
 }
 
