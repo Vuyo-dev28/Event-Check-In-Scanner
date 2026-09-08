@@ -759,8 +759,12 @@ function AttendeeOnboarding({ user, onComplete }: { user: ProfileUser; onComplet
     setSaving(true);
     setError('');
     try {
-      await user.update({ firstName: form.firstName.trim(), lastName: form.lastName.trim() });
       window.localStorage.setItem(`event-check-in:attendee-profile:${user.id}`, JSON.stringify(form));
+      try {
+        await user.update({ firstName: form.firstName.trim(), lastName: form.lastName.trim() });
+      } catch (profileSyncError) {
+        console.warn('Clerk profile name sync skipped; attendee profile was saved locally.', profileSyncError);
+      }
       onComplete();
     } catch {
       setError('We could not save your profile. Please try again.');
