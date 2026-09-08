@@ -9,12 +9,14 @@ import {
   ArrowLeft,
   ArrowRight,
   Bell,
+  CalendarDays,
   Check,
   CheckCircle2,
   ChevronDown,
   CircleHelp,
   Clock3,
   CloudOff,
+  CreditCard,
   ExternalLink,
   FileClock,
   Flag,
@@ -24,12 +26,15 @@ import {
   LockKeyhole,
   MapPin,
   Menu,
+  Minus,
   MoreHorizontal,
+  Plus,
   Radio,
   RefreshCw,
   Search,
   Settings as SettingsIcon,
   ShieldCheck,
+  ShoppingBag,
   Smartphone,
   Sparkles,
   Ticket,
@@ -143,6 +148,21 @@ const statusMeta: Record<ScanStatus, { label: string; title: string; detail: str
   TRANSFERRED: { label: 'New owner required', title: 'Ticket transferred', detail: 'This ticket has changed owner. Ask the guest to refresh their pass.', tone: 'warning' },
 };
 
+type TicketTier = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  remaining: number;
+  accent: 'lime' | 'coral' | 'blue';
+};
+
+const ticketTiers: TicketTier[] = [
+  { id: 'general', name: 'General admission', description: 'Full summit access, talks, and community floor.', price: 89, remaining: 574, accent: 'lime' },
+  { id: 'vip', name: 'VIP pass', description: 'Priority seating, speaker lounge, and fast entry.', price: 249, remaining: 42, accent: 'coral' },
+  { id: 'speaker', name: 'Speaker circle', description: 'Curated roundtables and private dinner access.', price: 399, remaining: 12, accent: 'blue' },
+];
+
 function formatNumber(value: number) {
   return new Intl.NumberFormat('en-US').format(value);
 }
@@ -218,6 +238,7 @@ function AppShell({ children, checkedIn }: { children: ReactNode; checkedIn: num
             <div className="hidden items-center gap-2 md:flex"><span className="h-2 w-2 rounded-full bg-primary soft-pulse" /><span className="font-mono text-[10px] uppercase tracking-[.15em] text-muted-foreground">Live event operations</span></div>
           </div>
           <div className="flex items-center gap-2.5">
+            <Link href="/buy" data-testid="link-buy-tickets" className="hidden items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-[10px] font-extrabold text-primary-foreground transition hover:brightness-95 sm:flex"><ShoppingBag size={12} /> Buy tickets</Link>
             <div className="hidden items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[10px] font-bold text-muted-foreground sm:flex"><Wifi size={12} className="text-primary" /> Offline-ready</div>
             <button data-testid="button-notifications" onClick={() => setNotificationsOpen(!notificationsOpen)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Bell size={18} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" /></button>
             <div className="hidden h-8 w-8 items-center justify-center rounded-full bg-secondary text-[10px] font-extrabold text-secondary-foreground sm:flex">JR</div>
@@ -412,6 +433,90 @@ function SettingGroup({ title, eyebrow, children }: { title: string; eyebrow: st
   return <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6"><div className="mb-5"><div className="font-mono text-[9px] uppercase tracking-[.17em] text-muted-foreground">{eyebrow}</div><h2 className="mt-1 text-base font-extrabold tracking-[-.03em]">{title}</h2></div>{children}</section>;
 }
 
+function BuyerCheckout() {
+  const [step, setStep] = useState<'tickets' | 'details' | 'complete'>('tickets');
+  const [quantities, setQuantities] = useState<Record<string, number>>({ general: 1, vip: 0, speaker: 0 });
+  const [buyer, setBuyer] = useState({ name: '', email: '' });
+  const [orderNumber] = useState('NS-240618-042');
+
+  const selected = ticketTiers.filter((tier) => quantities[tier.id] > 0);
+  const subtotal = selected.reduce((sum, tier) => sum + tier.price * quantities[tier.id], 0);
+  const serviceFee = Math.round(subtotal * 0.035);
+  const total = subtotal + serviceFee;
+  const ticketCount = Object.values(quantities).reduce((sum, quantity) => sum + quantity, 0);
+
+  const updateQuantity = (id: string, delta: number) => {
+    setQuantities((current) => ({
+      ...current,
+      [id]: Math.max(0, Math.min(8, (current[id] ?? 0) + delta)),
+    }));
+  };
+
+  if (step === 'complete') {
+    return <div className="drift-in mx-auto max-w-[850px]">
+      <div className="mb-6 flex items-center justify-between">
+        <Link href="/buy" data-testid="link-buy-more" className="flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Buy more tickets</Link>
+        <span className="rounded-full bg-primary/25 px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wide">Order confirmed</span>
+      </div>
+      <section className="overflow-hidden rounded-[28px] bg-secondary text-secondary-foreground shadow-xl">
+        <div className="relative overflow-hidden border-b border-secondary-foreground/10 p-6 sm:p-10">
+          <div className="absolute -right-12 -top-20 h-56 w-56 rounded-full border-[28px] border-primary/10" />
+          <div className="relative">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><CheckCircle2 size={25} strokeWidth={2.5} /></div>
+            <p className="mt-7 font-mono text-[10px] uppercase tracking-[.2em] text-secondary-foreground/55">Northstar Product Summit</p>
+            <h1 className="mt-2 text-[clamp(2rem,5vw,3.4rem)] font-extrabold leading-none tracking-[-.07em]">You’re on the list.</h1>
+            <p className="mt-3 max-w-md text-sm leading-relaxed text-secondary-foreground/65">Your demo order is ready. In production, your payment provider would now issue these digital tickets by email.</p>
+          </div>
+        </div>
+        <div className="grid gap-6 p-6 sm:grid-cols-[1fr_180px] sm:p-10">
+          <div>
+            <div className="font-mono text-[9px] uppercase tracking-[.18em] text-secondary-foreground/45">Order details</div>
+            <div className="mt-4 space-y-3">
+              {selected.map((tier) => <div key={tier.id} className="flex items-center justify-between border-b border-secondary-foreground/10 pb-3 text-xs"><span><span className="font-bold">{quantities[tier.id]} × {tier.name}</span><span className="ml-2 text-secondary-foreground/50">${tier.price} each</span></span><span className="font-mono">${tier.price * quantities[tier.id]}</span></div>)}
+            </div>
+            <div className="mt-5 flex items-center gap-2 text-[10px] text-secondary-foreground/55"><CalendarDays size={13} /> Today · 18 June 2024 · Pier 48, San Francisco</div>
+            <div className="mt-2 flex items-center gap-2 text-[10px] text-secondary-foreground/55"><UserRound size={13} /> {buyer.name || 'Guest attendee'} · {buyer.email || 'email pending'}</div>
+            <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-[10px] font-bold text-secondary-foreground/75"><Info size={13} /> Demo purchase · no payment was charged</div>
+          </div>
+          <div className="flex flex-col items-center justify-center rounded-2xl bg-card p-4 text-foreground">
+            <div className="qr-mark h-[132px] w-[132px] rounded-lg border-8 border-white bg-white" />
+            <div className="mt-3 font-mono text-[10px] font-bold tracking-wider">{orderNumber}</div>
+            <div className="mt-1 text-[9px] text-muted-foreground">Show at the entrance</div>
+          </div>
+        </div>
+      </section>
+    </div>;
+  }
+
+  return <div className="drift-in mx-auto max-w-[1180px]">
+    <PageHeading eyebrow="Public ticketing · Northstar Product Summit" title="Bring your people to Northstar." detail="Choose passes, share attendee details, and get a digital ticket ready for the door." action={<span className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 font-mono text-[10px] font-bold text-muted-foreground"><ShieldCheck size={13} className="text-primary" /> Secure checkout</span>} />
+    <div className="mb-6 flex items-center gap-2 rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-xs text-muted-foreground"><Info size={15} className="shrink-0 text-accent-foreground" /><span><strong className="text-foreground">Demo checkout.</strong> Connect Stripe or Whop to accept real payments and automatically email tickets.</span></div>
+    <div className="grid gap-5 lg:grid-cols-[1.25fr_.75fr]">
+      <div className="space-y-4">
+        {step === 'tickets' && <section className="space-y-3">
+          {ticketTiers.map((tier) => <div key={tier.id} className={`rounded-2xl border bg-card p-5 shadow-sm transition ${quantities[tier.id] > 0 ? 'border-primary/70 ring-1 ring-primary/20' : 'border-border'}`}>
+            <div className="flex items-start gap-4">
+              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${tier.accent === 'lime' ? 'bg-primary/25' : tier.accent === 'coral' ? 'bg-accent/20' : 'bg-chart-3/15'}`}><Ticket size={20} /></div>
+              <div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-base font-extrabold tracking-[-.03em]">{tier.name}</h2><p className="mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">{tier.description}</p></div><div className="text-right"><div className="text-xl font-extrabold tracking-[-.05em]">${tier.price}</div><div className="font-mono text-[9px] uppercase text-muted-foreground">per person</div></div></div>
+                <div className="mt-5 flex items-center justify-between gap-3"><span className="font-mono text-[10px] text-muted-foreground">{formatNumber(tier.remaining)} remaining</span><div className="flex items-center gap-2 rounded-xl bg-muted p-1"><button data-testid={`button-decrease-${tier.id}`} onClick={() => updateQuantity(tier.id, -1)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-card"><Minus size={14} /></button><span data-testid={`text-quantity-${tier.id}`} className="w-7 text-center text-xs font-extrabold">{quantities[tier.id]}</span><button data-testid={`button-increase-${tier.id}`} onClick={() => updateQuantity(tier.id, 1)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-card shadow-sm hover:bg-primary/20"><Plus size={14} /></button></div></div>
+              </div>
+            </div>
+          </div>)}
+        </section>}
+        {step === 'details' && <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7"><button data-testid="button-back-to-tickets" onClick={() => setStep('tickets')} className="mb-6 flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Back to ticket types</button><div className="mb-6"><div className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Attendee details</div><h2 className="mt-2 text-2xl font-extrabold tracking-[-.06em]">Where should we send your tickets?</h2><p className="mt-2 text-xs text-muted-foreground">One order contact is enough. You can share individual tickets after checkout.</p></div><div className="space-y-4"><label className="block"><span className="mb-2 block text-xs font-bold">Full name</span><input data-testid="input-buyer-name" value={buyer.name} onChange={(event) => setBuyer({ ...buyer, name: event.target.value })} placeholder="Jordan Reyes" className="w-full rounded-xl border border-input bg-background px-3.5 py-3 text-sm outline-none focus:border-primary" /></label><label className="block"><span className="mb-2 block text-xs font-bold">Email address</span><input data-testid="input-buyer-email" type="email" value={buyer.email} onChange={(event) => setBuyer({ ...buyer, email: event.target.value })} placeholder="you@example.com" className="w-full rounded-xl border border-input bg-background px-3.5 py-3 text-sm outline-none focus:border-primary" /></label></div></section>}
+      </div>
+      <aside className="h-fit rounded-2xl border border-border bg-card p-5 shadow-sm lg:sticky lg:top-24">
+        <div className="mb-5 flex items-center justify-between"><div><div className="font-mono text-[10px] uppercase tracking-[.16em] text-muted-foreground">Your order</div><h2 className="mt-1 text-base font-extrabold">Northstar summit</h2></div><ShoppingBag size={18} className="text-muted-foreground" /></div>
+        <div className="mb-5 flex items-center gap-2 rounded-xl bg-muted/60 p-3 text-[10px] text-muted-foreground"><CalendarDays size={14} className="text-foreground" /><span>Today · 18 June 2024<br /><strong className="text-foreground">Pier 48 · San Francisco</strong></span></div>
+        {selected.length > 0 ? <div className="space-y-3">{selected.map((tier) => <div key={tier.id} className="flex items-start justify-between gap-3 text-xs"><span><span className="font-bold">{quantities[tier.id]} × {tier.name}</span><span className="mt-1 block text-[10px] text-muted-foreground">${tier.price} each</span></span><span className="font-mono font-bold">${tier.price * quantities[tier.id]}</span></div>)}</div> : <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">Choose at least one ticket to continue.</p>}
+        <div className="my-5 border-t border-border pt-4 text-xs"><div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>${subtotal}</span></div><div className="mt-2 flex justify-between text-muted-foreground"><span>Service fee</span><span>${serviceFee}</span></div><div className="mt-4 flex items-end justify-between"><span className="font-extrabold">Total</span><span className="text-2xl font-extrabold tracking-[-.06em]">${total}</span></div></div>
+        {step === 'tickets' ? <button data-testid="button-continue-to-details" disabled={ticketCount === 0} onClick={() => setStep('details')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-xs font-extrabold text-primary-foreground transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40">Continue to details <ArrowRight size={15} /></button> : <button data-testid="button-place-demo-order" disabled={!buyer.name.trim() || !buyer.email.trim()} onClick={() => setStep('complete')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-xs font-extrabold text-primary-foreground transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"><CreditCard size={15} /> Complete demo order</button>}
+        <p className="mt-3 text-center text-[10px] leading-relaxed text-muted-foreground">No card details are collected in this demo.</p>
+      </aside>
+    </div>
+  </div>;
+}
+
 function NotFound() {
   return <div className="flex min-h-[100dvh] items-center justify-center bg-background p-6 text-center"><div><div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><Ticket size={25} /></div><h1 className="text-3xl font-extrabold tracking-[-.06em]">This door is closed.</h1><p className="mt-2 text-sm text-muted-foreground">That route is not part of this event workspace.</p><Link href="/" data-testid="link-back-home" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-3 text-xs font-bold text-secondary-foreground"><ArrowLeft size={14} /> Back to overview</Link></div></div>;
 }
@@ -424,7 +529,7 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
 function Router() {
   const [checkedIn, setCheckedIn] = useState(liveEvent.checkedIn);
   const checkIn = () => setCheckedIn(value => value + 1);
-  return <AppShell checkedIn={checkedIn}><RoutedErrorBoundary><Switch><Route path="/"><Overview checkedIn={checkedIn} /></Route><Route path="/check-in"><Scanner onCheckIn={checkIn} checkedIn={checkedIn} /></Route><Route path="/dashboard/check-in"><Scanner onCheckIn={checkIn} checkedIn={checkedIn} /></Route><Route path="/history"><HistoryPage /></Route><Route path="/settings"><SettingsPage /></Route><Route><NotFound /></Route></Switch></RoutedErrorBoundary></AppShell>;
+  return <AppShell checkedIn={checkedIn}><RoutedErrorBoundary><Switch><Route path="/"><Overview checkedIn={checkedIn} /></Route><Route path="/buy"><BuyerCheckout /></Route><Route path="/tickets"><BuyerCheckout /></Route><Route path="/check-in"><Scanner onCheckIn={checkIn} checkedIn={checkedIn} /></Route><Route path="/dashboard/check-in"><Scanner onCheckIn={checkIn} checkedIn={checkedIn} /></Route><Route path="/history"><HistoryPage /></Route><Route path="/settings"><SettingsPage /></Route><Route><NotFound /></Route></Switch></RoutedErrorBoundary></AppShell>;
 }
 
 function App() {

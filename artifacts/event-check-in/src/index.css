@@ -389,6 +389,17 @@
  * need to be distinguished from eachother visually.
  */
 @layer utilities {
+  .qr-mark {
+    background:
+      linear-gradient(90deg, #19233e 10%, transparent 10% 20%, #19233e 20% 30%, transparent 30% 40%, #19233e 40% 55%, transparent 55% 65%, #19233e 65% 76%, transparent 76% 88%, #19233e 88%),
+      linear-gradient(#19233e 10%, transparent 10% 20%, #19233e 20% 30%, transparent 30% 40%, #19233e 40% 55%, transparent 55% 65%, #19233e 65% 76%, transparent 76% 88%, #19233e 88%);
+    background-size: 100% 100%;
+    box-shadow:
+      inset 0 0 0 8px #fff,
+      inset 10px 10px 0 -6px #19233e,
+      inset -10px -10px 0 -6px #19233e;
+  }
+
   /* Hide ugly search cancel button in Chrome until we can style it properly */
   input[type='search']::-webkit-search-cancel-button {
     @apply hidden;
