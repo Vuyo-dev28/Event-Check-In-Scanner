@@ -1,4 +1,13 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ClerkProvider,
+  SignIn,
+  SignUp,
+  useClerk,
+  useUser,
+} from '@clerk/react';
+import { publishableKeyFromHost } from '@clerk/react/internal';
+import { shadcn } from '@clerk/themes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -48,6 +57,7 @@ import {
 } from 'lucide-react';
 import {
   Link,
+  Redirect,
   Route,
   Switch,
   useLocation,
@@ -55,6 +65,73 @@ import {
 } from 'wouter';
 
 const queryClient = new QueryClient();
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+const clerkPubKey = publishableKeyFromHost(
+  window.location.hostname,
+  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
+);
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+
+if (!clerkPubKey) {
+  throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
+}
+
+type AccountRole = 'attendee' | 'organizer';
+
+function stripBase(path: string) {
+  return basePath && path.startsWith(basePath)
+    ? path.slice(basePath.length) || '/'
+    : path;
+}
+
+const clerkAppearance = {
+  theme: shadcn,
+  cssLayerName: 'clerk',
+  options: {
+    logoPlacement: 'inside' as const,
+    logoLinkUrl: basePath || '/',
+    logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
+  },
+  variables: {
+    colorPrimary: '#c2ef50',
+    colorForeground: '#18213c',
+    colorMutedForeground: '#6c7284',
+    colorDanger: '#d75c54',
+    colorBackground: '#fbfaf6',
+    colorInput: '#ffffff',
+    colorInputForeground: '#18213c',
+    colorNeutral: '#d9d8d2',
+    fontFamily: 'Plus Jakarta Sans, sans-serif',
+    borderRadius: '0.9rem',
+  },
+  elements: {
+    rootBox: 'w-full flex justify-center',
+    cardBox: 'bg-[#fbfaf6] rounded-2xl w-[440px] max-w-full overflow-hidden',
+    card: '!shadow-none !border-0 !bg-transparent !rounded-none',
+    footer: '!shadow-none !border-0 !bg-transparent !rounded-none',
+    headerTitle: 'text-[#18213c] font-extrabold tracking-[-.04em]',
+    headerSubtitle: 'text-[#6c7284]',
+    socialButtonsBlockButtonText: 'text-[#18213c] font-bold',
+    formFieldLabel: 'text-[#18213c] font-bold',
+    footerActionLink: 'text-[#18213c] font-bold',
+    footerActionText: 'text-[#6c7284]',
+    dividerText: 'text-[#6c7284]',
+    identityPreviewEditButton: 'text-[#18213c]',
+    formFieldSuccessText: 'text-[#3f7f56]',
+    alertText: 'text-[#8c3d39]',
+    logoBox: 'mb-5',
+    logoImage: 'max-h-10',
+    socialButtonsBlockButton: 'border-[#d9d8d2] bg-white hover:bg-[#f0f0ea]',
+    formButtonPrimary: 'bg-[#c2ef50] text-[#18213c] font-extrabold hover:bg-[#b3df47]',
+    formFieldInput: 'border-[#d9d8d2] bg-white text-[#18213c]',
+    footerAction: 'bg-transparent',
+    dividerLine: 'bg-[#d9d8d2]',
+    alert: 'border-[#efc2bf] bg-[#fcecea]',
+    otpCodeFieldInput: 'border-[#d9d8d2] bg-white',
+    formFieldRow: 'mb-4',
+    main: 'px-1',
+  },
+};
 
 type ScanStatus =
   | 'VALID'
@@ -167,16 +244,20 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat('en-US').format(value);
 }
 
-function AppShell({ children, checkedIn }: { children: ReactNode; checkedIn: number }) {
+function AppShell({ children, checkedIn, role }: { children: ReactNode; checkedIn: number; role: AccountRole }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const nav = [
-    { href: '/', label: 'Overview', icon: LayoutDashboard },
-    { href: '/check-in', label: 'Check-in', icon: Radio },
-    { href: '/history', label: 'History', icon: History },
-    { href: '/settings', label: 'Settings', icon: SettingsIcon },
-  ];
+  const { signOut } = useClerk();
+  const { user } = useUser();
+  const nav = role === 'organizer'
+    ? [
+        { href: '/', label: 'Overview', icon: LayoutDashboard },
+        { href: '/check-in', label: 'Check-in', icon: Radio },
+        { href: '/history', label: 'History', icon: History },
+        { href: '/settings', label: 'Settings', icon: SettingsIcon },
+      ]
+    : [{ href: '/buy', label: 'Buy tickets', icon: ShoppingBag }];
   const isScanner = location === '/check-in' || location === '/dashboard/check-in';
 
   return (
@@ -221,9 +302,9 @@ function AppShell({ children, checkedIn }: { children: ReactNode; checkedIn: num
             <div className="mt-1 text-[10px] text-sidebar-foreground/50">people inside · {liveEvent.activeScanners} scanners online</div>
           </div>
           <div className="flex items-center gap-2.5 px-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-accent-foreground text-xs font-bold">JR</div>
-            <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-bold">Jordan Reyes</div><div className="text-[10px] text-sidebar-foreground/45">Lead operator</div></div>
-            <MoreHorizontal size={16} className="text-sidebar-foreground/45" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-accent-foreground text-xs font-bold">{(user?.firstName?.[0] ?? 'E')}{(user?.lastName?.[0] ?? 'C')}</div>
+            <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-bold">{user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? 'Event user'}</div><div className="text-[10px] text-sidebar-foreground/45">{role === 'organizer' ? 'Event organizer' : 'Attendee'}</div></div>
+            <button type="button" data-testid="button-sign-out" onClick={() => signOut({ redirectUrl: basePath || '/' })} className="rounded-lg p-1 text-sidebar-foreground/45 hover:bg-sidebar-accent hover:text-sidebar-foreground" aria-label="Sign out"><MoreHorizontal size={16} /></button>
           </div>
         </div>
       </aside>
@@ -241,7 +322,7 @@ function AppShell({ children, checkedIn }: { children: ReactNode; checkedIn: num
             <Link href="/buy" data-testid="link-buy-tickets" className="hidden items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-[10px] font-extrabold text-primary-foreground transition hover:brightness-95 sm:flex"><ShoppingBag size={12} /> Buy tickets</Link>
             <div className="hidden items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[10px] font-bold text-muted-foreground sm:flex"><Wifi size={12} className="text-primary" /> Offline-ready</div>
             <button data-testid="button-notifications" onClick={() => setNotificationsOpen(!notificationsOpen)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Bell size={18} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" /></button>
-            <div className="hidden h-8 w-8 items-center justify-center rounded-full bg-secondary text-[10px] font-extrabold text-secondary-foreground sm:flex">JR</div>
+            <button type="button" data-testid="button-header-sign-out" onClick={() => signOut({ redirectUrl: basePath || '/' })} className="hidden h-8 w-8 items-center justify-center rounded-full bg-secondary text-[10px] font-extrabold text-secondary-foreground sm:flex" aria-label="Sign out">{(user?.firstName?.[0] ?? 'E')}{(user?.lastName?.[0] ?? 'C')}</button>
           </div>
         </header>
         {notificationsOpen && <div className="absolute right-4 top-[58px] z-50 w-[260px] rounded-2xl border border-border bg-card p-4 shadow-xl"><div className="flex items-center justify-between"><span className="text-xs font-extrabold">Ops notices</span><button data-testid="button-close-notifications" onClick={() => setNotificationsOpen(false)} className="rounded-md p-1 text-muted-foreground hover:bg-muted"><X size={14} /></button></div><div className="mt-3 flex gap-2 rounded-xl bg-primary/15 p-3"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><p className="text-[10px] leading-relaxed">All scanners are synced. No action needed.</p></div></div>}
@@ -517,6 +598,41 @@ function BuyerCheckout() {
   </div>;
 }
 
+function LandingPage() {
+  return <div className="min-h-[100dvh] bg-secondary text-secondary-foreground"><div className="mx-auto flex min-h-[100dvh] max-w-[1280px] flex-col px-5 py-6 sm:px-8 lg:px-12">
+    <header className="flex items-center justify-between"><Link href="/" className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Ticket size={20} strokeWidth={2.5} /></span><span><span className="block text-sm font-extrabold tracking-[-.03em]">Event Check-In</span><span className="block font-mono text-[9px] uppercase tracking-[.18em] text-secondary-foreground/50">Tickets made simple</span></span></Link><div className="flex items-center gap-2"><Link href="/sign-in" data-testid="link-landing-sign-in" className="rounded-xl px-3.5 py-2.5 text-xs font-bold text-secondary-foreground/75 hover:bg-secondary-foreground/10">Sign in</Link><Link href="/sign-up" data-testid="link-landing-sign-up" className="rounded-xl bg-primary px-3.5 py-2.5 text-xs font-extrabold text-primary-foreground hover:brightness-95">Create account</Link></div></header>
+    <main className="grid flex-1 items-center gap-12 py-16 lg:grid-cols-[1.05fr_.95fr] lg:py-20"><div><div className="mb-5 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[.2em] text-secondary-foreground/55"><span className="h-2 w-2 rounded-full bg-primary soft-pulse" /> One place for every entrance</div><h1 className="max-w-2xl text-[clamp(3rem,7vw,6.3rem)] font-extrabold leading-[.94] tracking-[-.09em]">The smoother way to arrive.</h1><p className="mt-6 max-w-xl text-base leading-relaxed text-secondary-foreground/65 sm:text-lg">Buy a ticket in minutes, keep it on your phone, and walk into events with confidence. Organizers get the same calm control on event day.</p><div className="mt-9 flex flex-col gap-3 sm:flex-row"><Link href="/sign-up" data-testid="link-landing-get-started" className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3.5 text-sm font-extrabold text-primary-foreground hover:brightness-95">Get started <ArrowRight size={16} /></Link><Link href="/sign-in" className="inline-flex items-center justify-center gap-2 rounded-xl border border-secondary-foreground/15 px-5 py-3.5 text-sm font-bold text-secondary-foreground/80 hover:bg-secondary-foreground/10">I already have an account</Link></div><div className="mt-12 flex flex-wrap gap-x-6 gap-y-3 text-[10px] text-secondary-foreground/50"><span className="flex items-center gap-2"><ShieldCheck size={13} className="text-primary" /> Secure accounts</span><span className="flex items-center gap-2"><Smartphone size={13} className="text-primary" /> Mobile-ready tickets</span><span className="flex items-center gap-2"><Radio size={13} className="text-primary" /> Fast entry</span></div></div>
+      <div className="relative mx-auto w-full max-w-[520px]"><div className="absolute -right-5 -top-8 h-40 w-40 rounded-full border-[24px] border-primary/10" /><div className="relative overflow-hidden rounded-[30px] border border-secondary-foreground/10 bg-background p-4 text-foreground shadow-2xl sm:p-6"><div className="flex items-center justify-between border-b border-border pb-4"><div><div className="font-mono text-[9px] uppercase tracking-[.18em] text-muted-foreground">Your next event</div><div className="mt-1 text-sm font-extrabold">Northstar Product Summit</div></div><span className="rounded-full bg-primary/25 px-2.5 py-1 font-mono text-[9px] font-bold uppercase">Live</span></div><div className="mt-5 rounded-2xl bg-secondary p-5 text-secondary-foreground"><div className="flex items-start justify-between"><div><div className="font-mono text-[9px] uppercase tracking-[.18em] text-secondary-foreground/50">18 June 2024</div><div className="mt-3 text-2xl font-extrabold tracking-[-.06em]">You’re invited.</div><div className="mt-2 flex items-center gap-1.5 text-[10px] text-secondary-foreground/55"><MapPin size={12} /> Pier 48 · San Francisco</div></div><div className="qr-mark h-20 w-20 rounded-lg border-4 border-white bg-white" /></div><div className="mt-6 flex items-center justify-between border-t border-secondary-foreground/10 pt-4 text-[10px]"><span className="text-secondary-foreground/50">Digital pass</span><span className="font-mono font-bold">NS-04821</span></div></div><div className="mt-4 flex items-center justify-between rounded-xl bg-muted px-3 py-3 text-[10px]"><span className="flex items-center gap-2 font-bold"><CheckCircle2 size={14} className="text-primary" /> Ready for the door</span><ArrowRight size={14} className="text-muted-foreground" /></div></div></div>
+    </main>
+  </div></div>;
+}
+
+function RoleChooser({ userId, userName, onChoose }: { userId: string; userName: string; onChoose: (role: AccountRole) => void }) {
+  return <div className="min-h-[100dvh] bg-secondary px-4 py-8 text-secondary-foreground"><div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-[900px] flex-col justify-center"><div className="mb-10 flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Ticket size={20} /></span><div><div className="text-sm font-extrabold">Event Check-In</div><div className="font-mono text-[9px] uppercase tracking-[.18em] text-secondary-foreground/50">Choose your workspace</div></div></div><div className="max-w-xl"><div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[.2em] text-secondary-foreground/55"><span className="h-2 w-2 rounded-full bg-primary" /> Welcome, {userName}</div><h1 className="text-[clamp(2.2rem,6vw,4.5rem)] font-extrabold leading-none tracking-[-.08em]">How will you use Event Check-In?</h1><p className="mt-4 text-sm leading-relaxed text-secondary-foreground/60">Choose the space that matches you. You can switch accounts later by signing out.</p></div><div className="mt-10 grid gap-4 md:grid-cols-2"><button data-testid="button-choose-attendee" onClick={() => onChoose('attendee')} className="group rounded-2xl border border-secondary-foreground/10 bg-secondary-foreground/5 p-5 text-left transition hover:-translate-y-1 hover:border-primary/70 hover:bg-secondary-foreground/10"><div className="flex items-start justify-between"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><ShoppingBag size={20} /></span><ArrowRight size={18} className="text-secondary-foreground/35 transition group-hover:translate-x-1 group-hover:text-primary" /></div><h2 className="mt-8 text-xl font-extrabold tracking-[-.04em]">I’m attending events</h2><p className="mt-2 text-xs leading-relaxed text-secondary-foreground/55">Browse events, buy tickets, and keep your digital passes in one place.</p></button><button data-testid="button-choose-organizer" onClick={() => onChoose('organizer')} className="group rounded-2xl border border-secondary-foreground/10 bg-secondary-foreground/5 p-5 text-left transition hover:-translate-y-1 hover:border-primary/70 hover:bg-secondary-foreground/10"><div className="flex items-start justify-between"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent text-accent-foreground"><LayoutDashboard size={20} /></span><ArrowRight size={18} className="text-secondary-foreground/35 transition group-hover:translate-x-1 group-hover:text-primary" /></div><h2 className="mt-8 text-xl font-extrabold tracking-[-.04em]">I organize events</h2><p className="mt-2 text-xs leading-relaxed text-secondary-foreground/55">Manage event day, assign scanners, and check guests in without slowing the line.</p></button></div><div className="mt-8 flex items-center gap-2 text-[10px] text-secondary-foreground/40"><LockKeyhole size={12} /> Account role saved for this device · {userId.slice(0, 12)}…</div></div></div>;
+}
+
+function SignInPage() {
+  return <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/20 px-4 py-10"><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /></div>;
+}
+
+function SignUpPage() {
+  return <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/20 px-4 py-10"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></div>;
+}
+
+function ClerkQueryClientCacheInvalidator() {
+  const { addListener } = useClerk();
+  const previousUserId = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const unsubscribe = addListener(({ user }) => {
+      const userId = user?.id ?? null;
+      if (previousUserId.current !== undefined && previousUserId.current !== userId) queryClient.clear();
+      previousUserId.current = userId;
+    });
+    return unsubscribe;
+  }, [addListener]);
+  return null;
+}
+
 function NotFound() {
   return <div className="flex min-h-[100dvh] items-center justify-center bg-background p-6 text-center"><div><div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><Ticket size={25} /></div><h1 className="text-3xl font-extrabold tracking-[-.06em]">This door is closed.</h1><p className="mt-2 text-sm text-muted-foreground">That route is not part of this event workspace.</p><Link href="/" data-testid="link-back-home" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-3 text-xs font-bold text-secondary-foreground"><ArrowLeft size={14} /> Back to overview</Link></div></div>;
 }
@@ -526,14 +642,40 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
 }
 
-function Router() {
+function Router({ role }: { role: AccountRole }) {
   const [checkedIn, setCheckedIn] = useState(liveEvent.checkedIn);
   const checkIn = () => setCheckedIn(value => value + 1);
-  return <AppShell checkedIn={checkedIn}><RoutedErrorBoundary><Switch><Route path="/"><Overview checkedIn={checkedIn} /></Route><Route path="/buy"><BuyerCheckout /></Route><Route path="/tickets"><BuyerCheckout /></Route><Route path="/check-in"><Scanner onCheckIn={checkIn} checkedIn={checkedIn} /></Route><Route path="/dashboard/check-in"><Scanner onCheckIn={checkIn} checkedIn={checkedIn} /></Route><Route path="/history"><HistoryPage /></Route><Route path="/settings"><SettingsPage /></Route><Route><NotFound /></Route></Switch></RoutedErrorBoundary></AppShell>;
+  return <AppShell checkedIn={checkedIn} role={role}><RoutedErrorBoundary><Switch><Route path="/"><Overview checkedIn={checkedIn} /></Route><Route path="/buy"><BuyerCheckout /></Route><Route path="/tickets"><BuyerCheckout /></Route><Route path="/check-in"><Scanner onCheckIn={checkIn} checkedIn={checkedIn} /></Route><Route path="/dashboard/check-in"><Scanner onCheckIn={checkIn} checkedIn={checkedIn} /></Route><Route path="/history"><HistoryPage /></Route><Route path="/settings"><SettingsPage /></Route><Route><NotFound /></Route></Switch></RoutedErrorBoundary></AppShell>;
+}
+
+function AuthenticatedExperience() {
+  const { isLoaded, isSignedIn, user } = useUser();
+  const [location, setLocation] = useLocation();
+  const [role, setRole] = useState<AccountRole | null>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setRole(null);
+      return;
+    }
+    const storedRole = window.localStorage.getItem(`event-check-in:role:${user.id}`);
+    setRole(storedRole === 'attendee' || storedRole === 'organizer' ? storedRole : null);
+  }, [user]);
+
+  if (!isLoaded) return <div className="flex min-h-[100dvh] items-center justify-center bg-secondary text-secondary-foreground"><div className="flex items-center gap-2 text-xs font-bold"><span className="h-2 w-2 rounded-full bg-primary soft-pulse" /> Loading your account…</div></div>;
+  if (!isSignedIn || !user) return location === '/' ? <LandingPage /> : <Redirect to="/sign-in" />;
+  if (!role) return <RoleChooser userId={user.id} userName={user.firstName ?? user.primaryEmailAddress?.emailAddress ?? 'there'} onChoose={(nextRole) => { window.localStorage.setItem(`event-check-in:role:${user.id}`, nextRole); setRole(nextRole); setLocation(nextRole === 'attendee' ? '/buy' : '/'); }} />;
+  if (role === 'attendee' && location !== '/buy' && location !== '/tickets') return <Redirect to="/buy" />;
+  return <Router role={role} />;
+}
+
+function ClerkApp() {
+  const [, setLocation] = useLocation();
+  return <ClerkProvider publishableKey={clerkPubKey} proxyUrl={clerkProxyUrl} appearance={clerkAppearance} signInUrl={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} localization={{ signIn: { start: { title: 'Welcome back', subtitle: 'Sign in to access your event account' } }, signUp: { start: { title: 'Create your account', subtitle: 'Choose your Event Check-In workspace next' } } }} routerPush={(to) => setLocation(stripBase(to))} routerReplace={(to) => setLocation(stripBase(to), { replace: true })}><QueryClientProvider client={queryClient}><ClerkQueryClientCacheInvalidator /><TooltipProvider><Switch><Route path="/sign-in/*?" component={SignInPage} /><Route path="/sign-up/*?" component={SignUpPage} /><Route component={AuthenticatedExperience} /></Switch><Toaster /></TooltipProvider></QueryClientProvider></ClerkProvider>;
 }
 
 function App() {
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
+  return <WouterRouter base={basePath}><ClerkApp /></WouterRouter>;
 }
 
 export default App;
