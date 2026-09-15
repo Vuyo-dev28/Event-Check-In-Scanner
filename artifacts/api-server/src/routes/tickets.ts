@@ -43,10 +43,6 @@ function formatTicketNumber() {
 
 router.post("/tickets/orders", async (request, response) => {
   const userId = getUserId(request);
-  if (!userId) {
-    response.status(401).json({ error: "Sign in is required before checkout." });
-    return;
-  }
 
   const { buyerName, buyerEmail, items } = request.body as {
     buyerName?: unknown;
@@ -97,7 +93,7 @@ router.post("/tickets/orders", async (request, response) => {
       const now = new Date();
       await transaction.insert(ticketOrders).values({
         id: orderId,
-        userId,
+        userId: userId ?? null,
         buyerName: buyerName.trim(),
         buyerEmail,
         eventId: event.id,
@@ -119,7 +115,7 @@ router.post("/tickets/orders", async (request, response) => {
           tickets.push({
             id: ticketId,
             orderId,
-            userId,
+            userId: userId ?? null,
             ticketNumber: formatTicketNumber(),
             qrToken,
             ticketType: tiers[item.tierId].name,

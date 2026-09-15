@@ -1,0 +1,50 @@
+### Account Creation & Registration
+
+The platform must use different account flows for event organizers and ticket buyers.
+
+#### Event Organizers / Event Admins
+
+Event organizers must be required to create an account or log in when they click **“Get Started”** with the intention of creating or managing an event.
+
+Flow:
+
+**Get Started → Sign Up / Log In → Organizer Dashboard → Create Event**
+
+Do not allow an unauthenticated user to access organizer functionality.
+
+Organizer accounts are required to create and manage events, ticket types, attendees, ticket scanning, staff, analytics, payments, and event settings.
+
+#### Ticket Buyers / Customers
+
+Ticket buyers must NOT be forced to create an account when they first visit the platform.
+
+Customers should be able to:
+
+**Browse Events → View Event → Select Tickets → Proceed to Checkout**
+
+Only when the customer clicks **“Checkout”** should the platform introduce the account/guest option.
+
+At checkout, provide two options:
+
+1. **Create an account / Log in**
+2. **Continue as Guest**
+
+Creating an account should be quick and should use the customer's checkout information where possible, such as their name and email address.
+
+If the customer chooses guest checkout, they must still be able to complete their purchase and receive their digital ticket via email.
+
+After a guest purchase, provide an optional opportunity to create an account so they can access their tickets, order history, and future purchases.
+
+#### Check-In Staff
+
+Check-in staff must authenticate before accessing the ticket scanning system.
+
+Flow:
+
+**Staff Login → Select Assigned Event → Open Scanner → Scan Tickets**
+
+Staff accounts must only have the permissions necessary to scan and check in tickets. They must not have access to financial or administrative functionality unless explicitly granted by an organizer administrator.
+
+### Key UX Rule
+
+Do not create unnecessary registration friction for ticket buyers. The platform should prioritize allowing customers to discover events and purchase tickets quickly, while requiring authentication upfront for users who are managing events.

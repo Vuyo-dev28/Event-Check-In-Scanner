@@ -2,7 +2,7 @@ import { integer, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-c
 
 export const ticketOrders = pgTable("ticket_orders", {
   id: text("id").primaryKey(),
-  userId: text("user_id").notNull(),
+  userId: text("user_id"),
   buyerName: text("buyer_name").notNull(),
   buyerEmail: text("buyer_email").notNull(),
   eventId: text("event_id").notNull(),
@@ -21,7 +21,7 @@ export const issuedTickets = pgTable(
   {
     id: text("id").primaryKey(),
     orderId: text("order_id").notNull().references(() => ticketOrders.id, { onDelete: "cascade" }),
-    userId: text("user_id").notNull(),
+    userId: text("user_id"),
     ticketNumber: text("ticket_number").notNull(),
     qrToken: text("qr_token").notNull(),
     ticketType: text("ticket_type").notNull(),
