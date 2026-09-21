@@ -1,13 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ClerkProvider,
-  SignIn,
-  SignUp,
-  useClerk,
-  useUser,
-} from '@clerk/react';
-import { publishableKeyFromHost } from '@clerk/react/internal';
-import { shadcn } from '@clerk/themes';
+import { ClerkProvider, useClerk, useUser } from '@/lib/local-auth';
+import { LocalSignIn, LocalSignUp } from '@/lib/local-auth-pages';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -67,15 +60,6 @@ import {
 
 const queryClient = new QueryClient();
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
-
-if (!clerkPubKey) {
-  throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
-}
 
 type AccountRole = 'attendee' | 'organizer';
 
@@ -84,55 +68,6 @@ function stripBase(path: string) {
     ? path.slice(basePath.length) || '/'
     : path;
 }
-
-const clerkAppearance = {
-  theme: shadcn,
-  cssLayerName: 'clerk',
-  options: {
-    logoPlacement: 'inside' as const,
-    logoLinkUrl: basePath || '/',
-    logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
-  },
-  variables: {
-    colorPrimary: '#c2ef50',
-    colorForeground: '#18213c',
-    colorMutedForeground: '#6c7284',
-    colorDanger: '#d75c54',
-    colorBackground: '#fbfaf6',
-    colorInput: '#ffffff',
-    colorInputForeground: '#18213c',
-    colorNeutral: '#d9d8d2',
-    fontFamily: 'Plus Jakarta Sans, sans-serif',
-    borderRadius: '0.9rem',
-  },
-  elements: {
-    rootBox: 'w-full flex justify-center',
-    cardBox: 'bg-[#fbfaf6] rounded-2xl w-[440px] max-w-full overflow-hidden',
-    card: '!shadow-none !border-0 !bg-transparent !rounded-none',
-    footer: '!shadow-none !border-0 !bg-transparent !rounded-none',
-    headerTitle: 'text-[#18213c] font-extrabold tracking-[-.04em]',
-    headerSubtitle: 'text-[#6c7284]',
-    socialButtonsBlockButtonText: 'text-[#18213c] font-bold',
-    formFieldLabel: 'text-[#18213c] font-bold',
-    footerActionLink: 'text-[#18213c] font-bold',
-    footerActionText: 'text-[#6c7284]',
-    dividerText: 'text-[#6c7284]',
-    identityPreviewEditButton: 'text-[#18213c]',
-    formFieldSuccessText: 'text-[#3f7f56]',
-    alertText: 'text-[#8c3d39]',
-    logoBox: 'mb-5',
-    logoImage: 'max-h-10',
-    socialButtonsBlockButton: 'border-[#d9d8d2] bg-white hover:bg-[#f0f0ea]',
-    formButtonPrimary: 'bg-[#c2ef50] text-[#18213c] font-extrabold hover:bg-[#b3df47]',
-    formFieldInput: 'border-[#d9d8d2] bg-white text-[#18213c]',
-    footerAction: 'bg-transparent',
-    dividerLine: 'bg-[#d9d8d2]',
-    alert: 'border-[#efc2bf] bg-[#fcecea]',
-    otpCodeFieldInput: 'border-[#d9d8d2] bg-white',
-    formFieldRow: 'mb-4',
-    main: 'px-1',
-  },
-};
 
 type ScanStatus =
   | 'VALID'
@@ -681,7 +616,7 @@ function BuyerCheckout() {
           </div>)}
         </section>}
         {step === 'details' && <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7"><button data-testid="button-back-to-tickets" onClick={() => setStep('tickets')} className="mb-6 flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Back to ticket types</button><div className="mb-6"><div className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Attendee details</div><h2 className="mt-2 text-2xl font-extrabold tracking-[-.06em]">Where should we send your tickets?</h2><p className="mt-2 text-xs text-muted-foreground">One order contact is enough. You can share individual tickets after checkout.</p></div><div className="space-y-4"><label className="block"><span className="mb-2 block text-xs font-bold">Full name</span><input data-testid="input-buyer-name" value={buyer.name} onChange={(event) => setBuyer({ ...buyer, name: event.target.value })} placeholder="Jordan Reyes" className="w-full rounded-xl border border-input bg-background px-3.5 py-3 text-sm outline-none focus:border-primary" /></label><label className="block"><span className="mb-2 block text-xs font-bold">Email address</span><input data-testid="input-buyer-email" type="email" value={buyer.email} onChange={(event) => setBuyer({ ...buyer, email: event.target.value })} placeholder="you@example.com" className="w-full rounded-xl border border-input bg-background px-3.5 py-3 text-sm outline-none focus:border-primary" /></label></div></section>}
-         {step === 'access' && <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7"><button data-testid="button-back-to-details" onClick={() => setStep('details')} className="mb-6 flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Back to details</button><div className="mb-6"><div className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Checkout access</div><h2 className="mt-2 text-2xl font-extrabold tracking-[-.06em]">How would you like to continue?</h2><p className="mt-2 text-xs leading-relaxed text-muted-foreground">Create an account to access order history and future tickets, or continue as a guest and receive your pass by email.</p></div><div className="grid gap-3"><Link href="/sign-in" data-testid="link-checkout-sign-in" className="flex items-center justify-between rounded-2xl border border-border bg-background p-4 text-sm font-extrabold hover:border-primary"><span><span className="block">Log in</span><span className="mt-1 block text-[10px] font-normal text-muted-foreground">Use your existing Event Check-In account</span></span><ArrowRight size={16} /></Link><Link href="/sign-up" data-testid="link-checkout-sign-up" className="flex items-center justify-between rounded-2xl border border-primary/50 bg-primary/10 p-4 text-sm font-extrabold hover:bg-primary/20"><span><span className="block">Create an account</span><span className="mt-1 block text-[10px] font-normal text-muted-foreground">Keep your tickets and order history together</span></span><ArrowRight size={16} /></Link><button type="button" data-testid="button-continue-as-guest" disabled={!buyer.name.trim() || !buyer.email.trim() || issuing} onClick={() => { setGuestCheckout(true); void completeOrder(); }} className="flex items-center justify-between rounded-2xl border border-border bg-background p-4 text-left text-sm font-extrabold hover:border-secondary"><span><span className="block">Continue as guest</span><span className="mt-1 block text-[10px] font-normal text-muted-foreground">No account required; your ticket will be emailed</span></span><ArrowRight size={16} /></button></div></section>}
+         {step === 'access' && <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7"><button data-testid="button-back-to-details" onClick={() => setStep('details')} className="mb-6 flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Back to details</button><div className="mb-6"><div className="font-mono text-[10px] uppercase tracking-[.18em] text-muted-foreground">Checkout access</div><h2 className="mt-2 text-2xl font-extrabold tracking-[-.06em]">How would you like to continue?</h2><p className="mt-2 text-xs leading-relaxed text-muted-foreground">Create an account to access order history and future tickets, or continue as a guest and receive your pass by email.</p></div><div className="grid gap-3"><Link href="/sign-in" data-testid="link-checkout-sign-in" className="flex items-center justify-between rounded-2xl border border-border bg-background p-4 text-sm font-extrabold hover:border-primary"><span><span className="block">Log in</span><span className="mt-1 block text-[10px] font-normal text-muted-foreground">Use your existing Event Check-In account</span></span><ArrowRight size={16} /></Link><Link href="/sign-up" data-testid="link-checkout-sign-up" className="flex items-center justify-between rounded-2xl border border-primary/50 bg-primary/10 p-4 text-sm font-extrabold hover:bg-primary/20"><span><span className="block">Create an account</span><span className="mt-1 block text-[10px] font-normal text-muted-foreground">Keep your tickets and order history together</span></span><ArrowRight size={16} /></Link><button type="button" data-testid="button-continue-as-guest" disabled={!buyer.name.trim() || !buyer.email.trim() || issuing} onClick={() => { void completeOrder(); }} className="flex items-center justify-between rounded-2xl border border-border bg-background p-4 text-left text-sm font-extrabold hover:border-secondary"><span><span className="block">Continue as guest</span><span className="mt-1 block text-[10px] font-normal text-muted-foreground">No account required; your ticket will be emailed</span></span><ArrowRight size={16} /></button></div></section>}
       </div>
       <aside className="h-fit rounded-2xl border border-border bg-card p-5 shadow-sm lg:sticky lg:top-24">
         <div className="mb-5 flex items-center justify-between"><div><div className="font-mono text-[10px] uppercase tracking-[.16em] text-muted-foreground">Your order</div><h2 className="mt-1 text-base font-extrabold">Northstar summit</h2></div><ShoppingBag size={18} className="text-muted-foreground" /></div>
@@ -810,11 +745,11 @@ function RoleChooser({ userId, userName, onChoose }: { userId: string; userName:
 }
 
 function SignInPage() {
-  return <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/20 px-4 py-10"><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /></div>;
+  return <LocalSignIn />;
 }
 
 function SignUpPage() {
-  return <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/20 px-4 py-10"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></div>;
+  return <LocalSignUp />;
 }
 
 function ClerkQueryClientCacheInvalidator() {
@@ -879,8 +814,7 @@ function AuthenticatedExperience() {
 }
 
 function ClerkApp() {
-  const [, setLocation] = useLocation();
-  return <ClerkProvider publishableKey={clerkPubKey} proxyUrl={clerkProxyUrl} appearance={clerkAppearance} signInUrl={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} localization={{ signIn: { start: { title: 'Welcome back', subtitle: 'Sign in to access your event account' } }, signUp: { start: { title: 'Create your account', subtitle: 'Choose your Event Check-In workspace next' } } }} routerPush={(to) => setLocation(stripBase(to))} routerReplace={(to) => setLocation(stripBase(to), { replace: true })}><QueryClientProvider client={queryClient}><ClerkQueryClientCacheInvalidator /><TooltipProvider><Switch><Route path="/sign-in/*?" component={SignInPage} /><Route path="/sign-up/*?" component={SignUpPage} /><Route component={AuthenticatedExperience} /></Switch><Toaster /></TooltipProvider></QueryClientProvider></ClerkProvider>;
+  return <ClerkProvider><QueryClientProvider client={queryClient}><TooltipProvider><Switch><Route path="/sign-in/*?" component={SignInPage} /><Route path="/sign-up/*?" component={SignUpPage} /><Route component={AuthenticatedExperience} /></Switch><Toaster /></TooltipProvider></QueryClientProvider></ClerkProvider>;
 }
 
 function App() {
